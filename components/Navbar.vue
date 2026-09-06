@@ -4,11 +4,11 @@
       <div class="flex items-center justify-between h-16">
         <!-- Logo -->
         <NuxtLink to="/" class="flex items-center gap-2.5 group">
-          <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
+          <img
+            src="/logo.jpg"
+            alt="Hamster Software"
+            class="w-9 h-9 rounded-xl object-contain bg-white border border-slate-200/90 shadow-sm group-hover:scale-105 transition-transform"
+          />
           <div class="flex flex-col">
             <span class="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight leading-tight flex items-center gap-1">
               Hamster<span class="text-blue-600">Software</span>
