@@ -27,11 +27,15 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     const payload = verifyToken(token)
     if (payload) {
       c.set('tokenPayload', payload)
-      const user = await db.select().from(users).where(eq(users.id, payload.userId)).get()
-      if (user) {
-        const { passwordHash: _, ...safeUser } = user
-        c.set('user', safeUser)
-      } else {
+      try {
+        const user = await db.select().from(users).where(eq(users.id, payload.userId)).get()
+        if (user) {
+          const { passwordHash: _, ...safeUser } = user
+          c.set('user', safeUser)
+        } else {
+          c.set('user', null)
+        }
+      } catch {
         c.set('user', null)
       }
     } else {
