@@ -8,6 +8,9 @@ export default defineNuxtConfig({
   nitro: {
     preset: process.env.NITRO_PRESET || (process.env.CF_PAGES ? 'cloudflare-pages' : 'cloudflare-module')
   },
+  routeRules: {
+    '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } }
+  },
   app: {
     head: {
       title: 'Hamster Software Auditoría Web - Monitor & Auditoría de Sitios Web',
