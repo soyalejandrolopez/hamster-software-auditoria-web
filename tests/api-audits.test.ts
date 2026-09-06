@@ -33,7 +33,7 @@ describe('Hono Audits & Admin API Endpoints', () => {
       updatedAt: now
     }).run()
 
-    clientToken = signToken({ userId: clientId, email: 'cliente@test.com', role: 'client' })
+    clientToken = await signToken({ userId: clientId, email: 'cliente@test.com', role: 'client' })
     clientCookie = `auth_token=${clientToken}`
 
     // Create admin
@@ -43,7 +43,7 @@ describe('Hono Audits & Admin API Endpoints', () => {
       name: 'Admin Global'
     })
     adminId = admin.id
-    adminToken = signToken({ userId: admin.id, email: admin.email, role: 'admin' })
+    adminToken = await signToken({ userId: admin.id, email: admin.email, role: 'admin' })
     adminCookie = `auth_token=${adminToken}`
   })
 

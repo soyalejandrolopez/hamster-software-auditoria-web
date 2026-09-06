@@ -57,7 +57,7 @@ authRoutes.post('/register', async (c) => {
       updatedAt: now
     }
 
-    const token = signToken({
+    const token = await signToken({
       userId,
       email: normalizedEmail,
       role: 'client'
@@ -114,7 +114,7 @@ authRoutes.post('/login', async (c) => {
 
     const { passwordHash: _, ...safeUser } = user
 
-    const token = signToken({
+    const token = await signToken({
       userId: user.id,
       email: user.email,
       role: user.role

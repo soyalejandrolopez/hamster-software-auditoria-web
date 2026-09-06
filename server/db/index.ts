@@ -290,7 +290,18 @@ export function getLibSqlClient(): Client {
     }
   }
 
-  // 2. In Node.js environment (local dev or tests), try local SQLite file
+  // 2. If running on Cloudflare Workers / Edge runtime and no remote database is configured, use in-memory store
+  const isCloudflareWorker = typeof (globalThis as any).WebSocketPair !== 'undefined' ||
+    (typeof navigator !== 'undefined' && navigator.userAgent?.includes('Cloudflare')) ||
+    Boolean(process.env.CF_PAGES) ||
+    Boolean(process.env.CF_WORKER)
+
+  if (isCloudflareWorker) {
+    clientInstance = createInMemoryLibSqlClient()
+    return clientInstance
+  }
+
+  // 3. In Node.js environment (local dev or tests), try local SQLite file
   const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true'
 
   try {
@@ -299,7 +310,7 @@ export function getLibSqlClient(): Client {
       const poolId = process.env.VITEST_POOL_ID || process.pid || '0'
       const testDbPath = path.resolve(process.cwd(), `./data/test-webauditor-${poolId}.sqlite`)
       const dir = path.dirname(testDbPath)
-      if (!fs.existsSync(dir)) {
+      if (typeof fs?.existsSync === 'function' && !fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true })
       }
       url = `file:${testDbPath}`
@@ -307,7 +318,7 @@ export function getLibSqlClient(): Client {
       const rawPath = process.env.DATABASE_PATH || './data/webauditor.sqlite'
       const dbPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath)
       const dir = path.dirname(dbPath)
-      if (!fs.existsSync(dir)) {
+      if (typeof fs?.existsSync === 'function' && !fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true })
       }
       url = `file:${dbPath}`
@@ -319,12 +330,10 @@ export function getLibSqlClient(): Client {
     })
     return clientInstance
   } catch (err) {
-    console.warn('[DB] Local SQLite file not supported in this runtime. Using In-Memory Edge Store:', err)
+    // Fallback if local filesystem fails
+    clientInstance = createInMemoryLibSqlClient()
+    return clientInstance
   }
-
-  // 3. Fallback for Cloudflare Workers / Edge when no remote DB is provided
-  clientInstance = createInMemoryLibSqlClient()
-  return clientInstance
 }
 
 export async function initTables(client: Client) {

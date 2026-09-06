@@ -4,6 +4,7 @@
 .nuxt
 dist
 node_modules
+.wrangler
 
 # Environment
 .env

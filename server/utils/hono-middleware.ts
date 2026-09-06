@@ -24,7 +24,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
   }
 
   if (token) {
-    const payload = verifyToken(token)
+    const payload = await verifyToken(token)
     if (payload) {
       c.set('tokenPayload', payload)
       try {

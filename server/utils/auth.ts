@@ -1,10 +1,11 @@
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import { sign, verify } from 'hono/jwt'
 
 export interface TokenPayload {
   userId: string
   email: string
   role: 'admin' | 'client'
+  exp?: number
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'webauditor-super-secret-jwt-key-change-in-production-2026'
@@ -17,13 +18,15 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash)
 }
 
-export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
+export async function signToken(payload: TokenPayload): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60 // 7 days
+  return sign({ ...payload, exp }, JWT_SECRET, 'HS256')
 }
 
-export function verifyToken(token: string): TokenPayload | null {
+export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload
+    const payload = await verify(token, JWT_SECRET, 'HS256')
+    return payload as unknown as TokenPayload
   } catch {
     return null
   }
