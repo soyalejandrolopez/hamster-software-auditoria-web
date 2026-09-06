@@ -6,8 +6,16 @@
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24">
       <!-- Hero Header -->
       <div class="text-center max-w-3xl mx-auto">
-        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold uppercase tracking-wider mb-6 shadow-sm">
-          <img src="/logo.jpg" alt="Logo" class="w-4 h-4 rounded-full object-cover border border-blue-200" />
+        <div class="flex justify-center mb-6">
+          <img
+            src="/logo.jpg"
+            alt="Hamster Software"
+            class="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-contain bg-white border border-slate-200/90 shadow-xl shadow-blue-500/10 p-1.5 hover:scale-105 transition-transform"
+          />
+        </div>
+
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold uppercase tracking-wider mb-6 shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           Hamster Software · Auditoría Web Gratuita
         </div>
 

@@ -7,7 +7,7 @@
           <img
             src="/logo.jpg"
             alt="Hamster Software"
-            class="w-16 h-16 rounded-2xl object-contain bg-white border border-slate-200/90 mx-auto mb-3 shadow-md shadow-blue-500/10"
+            class="w-28 h-28 sm:w-32 sm:h-32 rounded-3xl object-contain bg-white border border-slate-200/90 mx-auto mb-4 shadow-lg shadow-blue-500/10 p-1.5"
           />
           <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Crear Cuenta de Cliente</h2>
           <p class="text-xs text-slate-500 mt-1">Hamster Software Auditoría Web · Monitoreo y Análisis</p>

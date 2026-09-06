@@ -1,19 +1,19 @@
 <template>
   <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
+      <div class="flex items-center justify-between h-20">
         <!-- Logo -->
-        <NuxtLink to="/" class="flex items-center gap-2.5 group">
+        <NuxtLink to="/" class="flex items-center gap-3.5 group py-1">
           <img
             src="/logo.jpg"
             alt="Hamster Software"
-            class="w-9 h-9 rounded-xl object-contain bg-white border border-slate-200/90 shadow-sm group-hover:scale-105 transition-transform"
+            class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-contain bg-white border border-slate-200/90 shadow-sm p-0.5 group-hover:scale-105 transition-transform"
           />
           <div class="flex flex-col">
-            <span class="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight leading-tight flex items-center gap-1">
+            <span class="font-extrabold text-lg sm:text-xl text-slate-900 tracking-tight leading-tight flex items-center gap-1">
               Hamster<span class="text-blue-600">Software</span>
             </span>
-            <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Auditoría Web</span>
+            <span class="text-[11px] uppercase font-bold text-slate-500 tracking-wider">Auditoría Web</span>
           </div>
         </NuxtLink>
 
