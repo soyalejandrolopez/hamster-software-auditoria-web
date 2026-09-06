@@ -94,6 +94,28 @@ node .output/server/index.mjs
 
 ---
 
+## ☁️ Despliegue en Cloudflare Pages
+
+El proyecto incluye soporte nativo y optimizado para **Cloudflare Pages**:
+
+1. Ve a tu panel de **Cloudflare Dashboard** → **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
+2. Selecciona el repositorio: `soyalejandrolopez/hamster-software-auditoria-web`.
+3. Configuración de compilación:
+   * **Framework preset**: `None` o `Nuxt.js`
+   * **Build command**: `npm run build`
+   * **Build output directory**: `dist`
+4. **Variables de Entorno (Environment Variables)** en Cloudflare:
+   * `NODE_VERSION`: `20`
+   * `NITRO_PRESET`: `cloudflare-pages`
+   * `JWT_SECRET`: (Tu clave secreta para firmas JWT)
+   * `ADMIN_EMAIL`: `admin@monitor.local` (o tu email preferido)
+   * `ADMIN_PASSWORD`: (Contraseña segura de administrador)
+   * `ADMIN_NAME`: `Administrador Hamster Software`
+   * *(Opcional)* `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`: Para base de datos SQLite / LibSQL distribuida en el Edge con persistencia global.
+5. Haz clic en **Save and Deploy**. Cloudflare compilará y desplegará la aplicación en su red global Anycast.
+
+---
+
 ## 📡 Endpoints de la API (Hono)
 
 ### Autenticación (`/api/auth`)
