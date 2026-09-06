@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio'
-import type { SecurityAuditResult, ActionPlanItem } from './types'
+import type { SecurityAuditResult, CookieAuditItem, ActionPlanItem } from './types'
 
 export interface SecurityAuditOptions {
   url: string
@@ -10,17 +10,23 @@ export interface SecurityAuditOptions {
     validTo: string
     daysRemaining: number
   }
+  sslDetails?: {
+    protocol: string
+    cipher: string
+    keySize: number
+  }
   html: string
+  cookies?: string[]
 }
 
 export function auditSecurity(options: SecurityAuditOptions): SecurityAuditResult {
-  const { url, headers, sslInfo, html } = options
+  const { url, headers, sslInfo, html, cookies = [], sslDetails } = options
   const isHttps = url.toLowerCase().startsWith('https://')
   const issues: ActionPlanItem[] = []
 
   let score = 100
 
-  // 1. HTTPS & SSL
+  // ─── 1. HTTPS & SSL ───
   if (!isHttps) {
     score -= 40
     issues.push({
@@ -32,7 +38,7 @@ export function auditSecurity(options: SecurityAuditOptions): SecurityAuditResul
       impact: 'high',
       effort: 'low',
       steps: [
-        'Instala un certificado SSL gratuito mediante Let’s Encrypt o habilita Cloudflare SSL.',
+        'Instala un certificado SSL gratuito mediante Let\'s Encrypt o habilita Cloudflare SSL.',
         'Configura una redirección forzada 301 de HTTP hacia HTTPS en tu servidor.'
       ]
     })
@@ -62,7 +68,23 @@ export function auditSecurity(options: SecurityAuditOptions): SecurityAuditResul
     })
   }
 
-  // 2. Security Headers Checklist
+  // ─── 2. TLS Version Check (NEW) ───
+  const tlsProtocol = sslDetails?.protocol || 'unknown'
+  if (tlsProtocol.includes('TLSv1') && !tlsProtocol.includes('TLSv1.2') && !tlsProtocol.includes('TLSv1.3')) {
+    score -= 15
+    issues.push({
+      id: 'sec_old_tls',
+      category: 'security',
+      severity: 'critical',
+      title: 'Protocolo TLS obsoleto detectado',
+      description: `El servidor usa ${tlsProtocol}, que es vulnerable. TLS 1.0 y 1.1 están descontinuados desde 2020.`,
+      impact: 'high',
+      effort: 'medium',
+      steps: ['Actualiza la configuración del servidor para soportar solo TLS 1.2 y TLS 1.3.']
+    })
+  }
+
+  // ─── 3. Security Headers Checklist ───
   const securityHeaderDefs = [
     {
       name: 'Strict-Transport-Security',
@@ -136,7 +158,7 @@ export function auditSecurity(options: SecurityAuditOptions): SecurityAuditResul
     }
   }
 
-  // 3. Mixed Content Check
+  // ─── 4. Mixed Content Check ───
   let mixedContentDetected = false
   let mixedContentCount = 0
   if (isHttps) {
@@ -164,12 +186,200 @@ export function auditSecurity(options: SecurityAuditOptions): SecurityAuditResul
     }
   }
 
+  // ─── 5. Cookie Security Audit (NEW) ───
+  const insecureCookies: CookieAuditItem[] = []
+  for (const cookieStr of cookies) {
+    const parts = cookieStr.split(';').map(p => p.trim())
+    const nameValue = parts[0] || ''
+    const cookieName = nameValue.split('=')[0] || 'unknown'
+    const lowerParts = parts.map(p => p.toLowerCase())
+
+    const hasSecure = lowerParts.some(p => p === 'secure')
+    const hasHttpOnly = lowerParts.some(p => p === 'httponly')
+    const sameSitePart = lowerParts.find(p => p.startsWith('samesite='))
+    const sameSite = sameSitePart ? sameSitePart.split('=')[1] : null
+
+    const cookieIssues: string[] = []
+    if (isHttps && !hasSecure) cookieIssues.push('Falta flag Secure')
+    if (!hasHttpOnly) cookieIssues.push('Falta flag HttpOnly')
+    if (!sameSite || sameSite === 'none') cookieIssues.push('SameSite no configurado o es None')
+
+    if (cookieIssues.length > 0) {
+      insecureCookies.push({
+        name: cookieName,
+        secure: hasSecure,
+        httpOnly: hasHttpOnly,
+        sameSite,
+        issues: cookieIssues
+      })
+    }
+  }
+
+  if (insecureCookies.length > 0) {
+    score -= Math.min(10, insecureCookies.length * 3)
+    issues.push({
+      id: 'sec_insecure_cookies',
+      category: 'security',
+      severity: 'warning',
+      title: `${insecureCookies.length} cookie(s) sin flags de seguridad`,
+      description: 'Las cookies sin HttpOnly, Secure o SameSite son vulnerables a robo por XSS o CSRF.',
+      impact: 'medium',
+      effort: 'low',
+      steps: [
+        'Configura todas las cookies con los flags: Secure, HttpOnly, SameSite=Lax.',
+        'Las cookies de sesión deben tener HttpOnly obligatoriamente.'
+      ]
+    })
+  }
+
+  // ─── 6. Server Info Disclosure (NEW) ───
+  const serverHeader = headers['server'] || null
+  const xPoweredBy = headers['x-powered-by'] || null
+  const serverDisclosed = Boolean(serverHeader || xPoweredBy)
+  const serverValue = serverHeader || xPoweredBy || null
+
+  // Check if version numbers are exposed
+  const versionPattern = /\d+\.\d+/
+  const exposesVersion = (serverHeader && versionPattern.test(serverHeader)) || (xPoweredBy && versionPattern.test(xPoweredBy))
+
+  if (exposesVersion) {
+    score -= 5
+    issues.push({
+      id: 'sec_server_disclosure',
+      category: 'security',
+      severity: 'info',
+      title: 'El servidor revela información de versión',
+      description: `El encabezado Server/X-Powered-By expone "${serverValue}", lo que facilita a atacantes buscar vulnerabilidades conocidas.`,
+      impact: 'low',
+      effort: 'low',
+      steps: [
+        'Configura server_tokens off en Nginx o ServerTokens Prod en Apache.',
+        'Elimina el encabezado X-Powered-By en la configuración del servidor.'
+      ]
+    })
+  }
+
+  // ─── 7. CORS Misconfiguration (NEW) ───
+  const corsHeader = headers['access-control-allow-origin'] || null
+  const hasWildcardCors = corsHeader === '*'
+  if (hasWildcardCors) {
+    score -= 5
+    issues.push({
+      id: 'sec_cors_wildcard',
+      category: 'security',
+      severity: 'info',
+      title: 'CORS con Access-Control-Allow-Origin: * (wildcard)',
+      description: 'Cualquier dominio puede hacer peticiones a tu API, lo que puede ser un riesgo si hay datos sensibles.',
+      impact: 'low',
+      effort: 'low',
+      steps: ['Restringe Access-Control-Allow-Origin a los dominios específicos que necesiten acceso.']
+    })
+  }
+
+  // ─── 8. Subresource Integrity (SRI) Check (NEW) ───
+  const $ = cheerio.load(html)
+  let scriptsWithoutSri = 0
+  let linksWithoutSri = 0
+
+  $('script[src]').each((_, el) => {
+    const src = $(el).attr('src') || ''
+    const integrity = $(el).attr('integrity')
+    // Only check external CDN scripts (not same-origin)
+    if ((src.startsWith('http://') || src.startsWith('https://')) && !integrity) {
+      scriptsWithoutSri++
+    }
+  })
+
+  $('link[rel="stylesheet"][href]').each((_, el) => {
+    const href = $(el).attr('href') || ''
+    const integrity = $(el).attr('integrity')
+    if ((href.startsWith('http://') || href.startsWith('https://')) && !integrity) {
+      linksWithoutSri++
+    }
+  })
+
+  const totalWithoutSri = scriptsWithoutSri + linksWithoutSri
+  if (totalWithoutSri > 3) {
+    score -= 3
+    issues.push({
+      id: 'sec_missing_sri',
+      category: 'security',
+      severity: 'info',
+      title: `${totalWithoutSri} recursos CDN sin Subresource Integrity (SRI)`,
+      description: 'Sin SRI, si un CDN es comprometido, scripts maliciosos podrían ejecutarse en tu página.',
+      impact: 'medium',
+      effort: 'medium',
+      steps: ['Añade atributos integrity="sha384-..." y crossorigin="anonymous" a scripts y estilos externos.']
+    })
+  }
+
+  // ─── 9. CSP Detailed Analysis (NEW) ───
+  const cspHeader = headers['content-security-policy'] || ''
+  let hasUnsafeInline = false
+  let hasUnsafeEval = false
+  let cspDetails = 'No se detectó Content-Security-Policy.'
+
+  if (cspHeader) {
+    hasUnsafeInline = cspHeader.includes("'unsafe-inline'")
+    hasUnsafeEval = cspHeader.includes("'unsafe-eval'")
+    cspDetails = cspHeader.substring(0, 200)
+
+    if (hasUnsafeInline) {
+      score -= 3
+      issues.push({
+        id: 'sec_csp_unsafe_inline',
+        category: 'security',
+        severity: 'info',
+        title: "CSP permite 'unsafe-inline'",
+        description: "La directiva unsafe-inline en CSP reduce significativamente la protección contra XSS.",
+        impact: 'medium',
+        effort: 'high',
+        steps: [
+          "Reemplaza 'unsafe-inline' con nonces (nonce-xxx) o hashes para scripts y estilos.",
+          'Usa strict-dynamic para adopción incremental.'
+        ]
+      })
+    }
+
+    if (hasUnsafeEval) {
+      score -= 3
+      issues.push({
+        id: 'sec_csp_unsafe_eval',
+        category: 'security',
+        severity: 'warning',
+        title: "CSP permite 'unsafe-eval'",
+        description: "La directiva unsafe-eval permite eval() y new Function(), facilitando la ejecución de código malicioso.",
+        impact: 'high',
+        effort: 'high',
+        steps: ["Elimina 'unsafe-eval' de la CSP y refactoriza el código que usa eval()."]
+      })
+    }
+  }
+
   return {
     score: Math.max(0, Math.min(100, score)),
     https: { isHttps, redirectsToHttps: isHttps },
     ssl: sslInfo,
+    sslDetails: sslDetails || { protocol: 'unknown', cipher: 'unknown', keySize: 0 },
     headers: headerResults,
     mixedContent: { detected: mixedContentDetected, count: mixedContentCount },
+    cookies: { total: cookies.length, insecure: insecureCookies, allSecure: insecureCookies.length === 0 },
+    serverDisclosure: {
+      disclosed: serverDisclosed,
+      value: serverValue,
+      message: exposesVersion
+        ? `Se expone versión: ${serverValue}`
+        : serverDisclosed
+          ? `Servidor detectado: ${serverValue} (sin versión expuesta)`
+          : 'No se revela información del servidor'
+    },
+    cors: { hasWildcard: hasWildcardCors, value: corsHeader },
+    sri: {
+      scriptsWithoutSri,
+      linksWithoutSri,
+      message: totalWithoutSri > 0 ? `${totalWithoutSri} recurso(s) CDN sin SRI` : 'Todos los recursos CDN tienen SRI'
+    },
+    cspAnalysis: { hasUnsafeInline, hasUnsafeEval, details: cspDetails },
     issues
   }
 }

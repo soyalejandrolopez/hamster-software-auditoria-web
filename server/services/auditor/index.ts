@@ -1,19 +1,23 @@
 import { URL } from 'node:url'
 import { fetchTarget } from './fetchTarget'
 import { auditSeo } from './seoAuditor'
-import { auditPerformance } from './performanceAuditor'
+import { auditPerformance, fetchCoreWebVitals } from './performanceAuditor'
 import { auditSecurity } from './securityAuditor'
 import { auditDomain } from './domainAuditor'
 import { auditTech } from './techAuditor'
+import { auditAccessibility } from './accessibilityAuditor'
+import { checkLinks } from './linkChecker'
 import { generateActionPlan } from './actionPlanGenerator'
 import type { AuditResult } from './types'
 
 export * from './types'
 export { auditSeo } from './seoAuditor'
-export { auditPerformance } from './performanceAuditor'
+export { auditPerformance, fetchCoreWebVitals } from './performanceAuditor'
 export { auditSecurity } from './securityAuditor'
 export { auditDomain } from './domainAuditor'
 export { auditTech } from './techAuditor'
+export { auditAccessibility } from './accessibilityAuditor'
+export { checkLinks } from './linkChecker'
 export { generateActionPlan } from './actionPlanGenerator'
 
 export interface RunAuditOptions {
@@ -41,7 +45,7 @@ export async function runAudit(targetUrl: string, options?: RunAuditOptions): Pr
     auditDomain(domain)
   ])
 
-  // 2. Run sub-auditors
+  // 2. Run synchronous sub-auditors
   const seo = auditSeo({
     html: targetData.html,
     url: targetData.finalUrl,
@@ -63,7 +67,9 @@ export async function runAudit(targetUrl: string, options?: RunAuditOptions): Pr
     url: targetData.finalUrl,
     headers: targetData.headers,
     sslInfo: targetData.sslInfo,
-    html: targetData.html
+    sslDetails: targetData.sslDetails,
+    html: targetData.html,
+    cookies: targetData.cookies
   })
 
   const tech = auditTech({
@@ -71,24 +77,45 @@ export async function runAudit(targetUrl: string, options?: RunAuditOptions): Pr
     headers: targetData.headers
   })
 
-  // 3. Generate prioritized Action Plan
+  // 3. Run async auditors in parallel
+  const [accessibility, linkCheck, coreWebVitals] = await Promise.all([
+    auditAccessibility(targetData.html),
+    checkLinks({ html: targetData.html, url: targetData.finalUrl, maxChecks: 30 }),
+    options?.pageSpeedApiKey
+      ? fetchCoreWebVitals(targetData.finalUrl, options.pageSpeedApiKey)
+      : Promise.resolve(undefined)
+  ])
+
+  // Merge Core Web Vitals into performance result
+  if (coreWebVitals && Object.keys(coreWebVitals).length > 0) {
+    performance.coreWebVitals = coreWebVitals
+  }
+
+  // 4. Generate prioritized Action Plan
   const actionPlan = generateActionPlan({
     seoScore: seo.score,
     performanceScore: performance.score,
     securityScore: security.score,
     domainScore: domainData.score,
+    accessibilityScore: accessibility.score,
+    linkCheckScore: linkCheck.score,
     seoIssues: seo.issues,
     performanceIssues: performance.issues,
     securityIssues: security.issues,
-    domainIssues: domainData.issues
+    domainIssues: domainData.issues,
+    accessibilityIssues: accessibility.issues,
+    linkCheckIssues: linkCheck.issues
   })
 
-  // 4. Calculate Overall Weighted Score
+  // 5. Calculate Overall Weighted Score
+  // SEO 25%, Performance 20%, Security 20%, Domain 10%, Accessibility 15%, Links 5%, Tech 5% (not scored)
   const overallScore = Math.round(
-    seo.score * 0.3 +
-    performance.score * 0.25 +
-    security.score * 0.25 +
-    domainData.score * 0.2
+    seo.score * 0.25 +
+    performance.score * 0.20 +
+    security.score * 0.20 +
+    domainData.score * 0.10 +
+    accessibility.score * 0.15 +
+    linkCheck.score * 0.10
   )
 
   return {
@@ -100,11 +127,16 @@ export async function runAudit(targetUrl: string, options?: RunAuditOptions): Pr
     security,
     domainData,
     tech,
+    accessibility,
+    linkCheck,
     actionPlan,
     createdAt: Math.floor(Date.now() / 1000)
   }
 }
 
+/**
+ * Quick audit from pre-fetched HTML and headers (used in tests and utilities)
+ */
 export function runAuditOnHtmlAndHeaders(options: {
   html: string
   headers: Record<string, string>
@@ -130,7 +162,9 @@ export function runAuditOnHtmlAndHeaders(options: {
     url: options.url,
     headers: options.headers,
     sslInfo: { valid: true, issuer: "Let's Encrypt", validTo: '2027-01-01', daysRemaining: 180 },
-    html: options.html
+    sslDetails: { protocol: 'TLSv1.3', cipher: 'TLS_AES_256_GCM_SHA384', keySize: 256 },
+    html: options.html,
+    cookies: []
   })
 
   const domainData = {
@@ -141,8 +175,13 @@ export function runAuditOnHtmlAndHeaders(options: {
       aaaa: [],
       mx: [{ exchange: 'mail.example.com', priority: 10 }],
       ns: ['ns1.example.com', 'ns2.example.com'],
-      txt: ['v=spf1 ~all']
+      txt: ['v=spf1 ~all'],
+      caa: []
     },
+    whois: { registrar: null, createdDate: null, expiryDate: null, daysUntilExpiry: null },
+    dmarc: { found: false, record: null },
+    ipv6Support: false,
+    reverseDns: [],
     issues: []
   }
 
@@ -151,22 +190,46 @@ export function runAuditOnHtmlAndHeaders(options: {
     headers: options.headers
   })
 
+  const accessibility = {
+    score: 80,
+    violations: [],
+    passes: 0,
+    totalRules: 0,
+    summary: { critical: 0, serious: 0, moderate: 0, minor: 0 },
+    issues: []
+  }
+
+  const linkCheck = {
+    score: 100,
+    totalLinks: 0,
+    checkedCount: 0,
+    broken: [],
+    redirects: [],
+    issues: []
+  }
+
   const actionPlan = generateActionPlan({
     seoScore: seo.score,
     performanceScore: performance.score,
     securityScore: security.score,
     domainScore: domainData.score,
+    accessibilityScore: accessibility.score,
+    linkCheckScore: linkCheck.score,
     seoIssues: seo.issues,
     performanceIssues: performance.issues,
     securityIssues: security.issues,
-    domainIssues: domainData.issues
+    domainIssues: domainData.issues,
+    accessibilityIssues: accessibility.issues,
+    linkCheckIssues: linkCheck.issues
   })
 
   const overallScore = Math.round(
-    seo.score * 0.3 +
-    performance.score * 0.25 +
-    security.score * 0.25 +
-    domainData.score * 0.2
+    seo.score * 0.25 +
+    performance.score * 0.20 +
+    security.score * 0.20 +
+    domainData.score * 0.10 +
+    accessibility.score * 0.15 +
+    linkCheck.score * 0.10
   )
 
   return {
@@ -178,6 +241,8 @@ export function runAuditOnHtmlAndHeaders(options: {
     security,
     domainData,
     tech,
+    accessibility,
+    linkCheck,
     actionPlan,
     createdAt: Math.floor(Date.now() / 1000)
   }

@@ -17,6 +17,13 @@ export interface TargetFetchResult {
     validTo: string
     daysRemaining: number
   }
+  sslDetails: {
+    protocol: string
+    cipher: string
+    keySize: number
+  }
+  cookies: string[]
+  redirectChain: string[]
 }
 
 export async function fetchTarget(targetUrl: string): Promise<TargetFetchResult> {
@@ -29,12 +36,15 @@ export async function fetchTarget(targetUrl: string): Promise<TargetFetchResult>
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15000)
 
+  // Track redirects manually for the chain
+  const redirectChain: string[] = [targetUrl]
+
   let response: Response
   try {
     response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WebAuditor/1.0',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 HamsterSoftware-AuditoriaWeb/1.0',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br'
       },
@@ -42,6 +52,11 @@ export async function fetchTarget(targetUrl: string): Promise<TargetFetchResult>
       redirect: 'follow'
     })
     ttfbMs = Math.round(performance.now() - startTime)
+
+    // If the final URL differs, a redirect occurred
+    if (response.url !== targetUrl) {
+      redirectChain.push(response.url)
+    }
   } finally {
     clearTimeout(timeout)
   }
@@ -51,15 +66,21 @@ export async function fetchTarget(targetUrl: string): Promise<TargetFetchResult>
   const pageSizeBytes = Buffer.byteLength(html, 'utf8')
 
   const headers: Record<string, string> = {}
+  const cookies: string[] = []
   response.headers.forEach((val, key) => {
-    headers[key.toLowerCase()] = val
+    const lk = key.toLowerCase()
+    if (lk === 'set-cookie') {
+      cookies.push(val)
+    }
+    headers[lk] = val
   })
 
-  // Check robots.txt and sitemap.xml in parallel
-  const [robotsTxtExists, sitemapExists, sslInfo] = await Promise.all([
+  // Check robots.txt, sitemap.xml, and SSL in parallel
+  const [robotsTxtExists, sitemapExists, sslInfo, sslDetails] = await Promise.all([
     checkHeadExists(`${urlObj.origin}/robots.txt`),
     checkHeadExists(`${urlObj.origin}/sitemap.xml`),
-    isHttps ? inspectSslCertificate(urlObj.hostname, urlObj.port ? parseInt(urlObj.port) : 443) : Promise.resolve({ valid: false, issuer: 'None', validTo: '', daysRemaining: 0 })
+    isHttps ? inspectSslCertificate(urlObj.hostname, urlObj.port ? parseInt(urlObj.port) : 443) : Promise.resolve({ valid: false, issuer: 'None', validTo: '', daysRemaining: 0 }),
+    isHttps ? inspectSslDetails(urlObj.hostname, urlObj.port ? parseInt(urlObj.port) : 443) : Promise.resolve({ protocol: 'none', cipher: 'none', keySize: 0 })
   ])
 
   return {
@@ -72,7 +93,10 @@ export async function fetchTarget(targetUrl: string): Promise<TargetFetchResult>
     finalUrl: response.url,
     robotsTxtExists,
     sitemapExists,
-    sslInfo
+    sslInfo,
+    sslDetails,
+    cookies,
+    redirectChain
   }
 }
 
@@ -123,6 +147,38 @@ function inspectSslCertificate(hostname: string, port = 443): Promise<{ valid: b
       })
     } catch {
       resolve({ valid: false, issuer: 'Error desconocido', validTo: '', daysRemaining: 0 })
+    }
+  })
+}
+
+function inspectSslDetails(hostname: string, port = 443): Promise<{ protocol: string; cipher: string; keySize: number }> {
+  return new Promise((resolve) => {
+    try {
+      const socket = tls.connect(
+        { host: hostname, port, servername: hostname, timeout: 5000 },
+        () => {
+          const protocol = socket.getProtocol() || 'unknown'
+          const cipherInfo = socket.getCipher()
+          socket.destroy()
+          resolve({
+            protocol,
+            cipher: cipherInfo?.name || 'unknown',
+            keySize: cipherInfo?.version ? 256 : 0
+          })
+        }
+      )
+
+      socket.on('error', () => {
+        socket.destroy()
+        resolve({ protocol: 'error', cipher: 'error', keySize: 0 })
+      })
+
+      socket.on('timeout', () => {
+        socket.destroy()
+        resolve({ protocol: 'timeout', cipher: 'timeout', keySize: 0 })
+      })
+    } catch {
+      resolve({ protocol: 'unknown', cipher: 'unknown', keySize: 0 })
     }
   })
 }

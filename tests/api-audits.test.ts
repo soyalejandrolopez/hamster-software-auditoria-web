@@ -61,6 +61,46 @@ describe('Hono Audits & Admin API Endpoints', () => {
     expect(res.status).toBe(401)
   })
 
+  it('should allow guest to view a public audit without authentication', async () => {
+    const auditId = 'aud_guest_1'
+    const now = Math.floor(Date.now() / 1000)
+
+    await db.insert(audits).values({
+      id: auditId,
+      userId: null,
+      url: 'https://guest-example.com',
+      domain: 'guest-example.com',
+      overallScore: 88,
+      seoScore: 90,
+      performanceScore: 85,
+      securityScore: 85,
+      domainScore: 90,
+      accessibilityScore: 95,
+      createdAt: now
+    }).run()
+
+    await db.insert(auditDetails).values({
+      id: 'dtl_' + auditId,
+      auditId,
+      seoData: JSON.stringify({ title: 'Guest Site' }),
+      performanceData: JSON.stringify({ ttfb: 120 }),
+      securityData: JSON.stringify({ https: true }),
+      domainData: JSON.stringify({ a: ['1.2.3.4'] }),
+      techData: JSON.stringify([]),
+      accessibilityData: JSON.stringify({ score: 95 }),
+      linksData: JSON.stringify({ broken: [] }),
+      actionPlan: JSON.stringify([])
+    }).run()
+
+    // Request WITHOUT any Cookie or Auth header
+    const res = await app.request(`/api/audits/${auditId}`)
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.audit.domain).toBe('guest-example.com')
+    expect(data.audit.userId).toBeNull()
+    expect(data.details.accessibility.score).toBe(95)
+  })
+
   it('should fetch audit details and delete audit by owner', async () => {
     // Seed an audit for the client
     const auditId = 'aud_test_1'

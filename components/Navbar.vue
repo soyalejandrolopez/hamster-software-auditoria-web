@@ -10,10 +10,10 @@
             </svg>
           </div>
           <div class="flex flex-col">
-            <span class="font-extrabold text-lg text-slate-900 tracking-tight leading-tight flex items-center gap-1.5">
-              Web<span class="text-blue-600">Auditor</span>
+            <span class="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight leading-tight flex items-center gap-1">
+              Hamster<span class="text-blue-600">Software</span>
             </span>
-            <span class="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Monitor & SEO</span>
+            <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Auditoría Web</span>
           </div>
         </NuxtLink>
 

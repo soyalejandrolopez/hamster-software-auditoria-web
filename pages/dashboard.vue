@@ -334,9 +334,11 @@ const savingSettings = ref(false)
 const settingsMessage = ref('')
 
 onMounted(async () => {
-  await loadAudits()
-  if (isAdmin.value) {
-    loadAdminData()
+  if (user.value) {
+    await loadAudits()
+    if (isAdmin.value) {
+      loadAdminData()
+    }
   }
 })
 

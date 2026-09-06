@@ -15,7 +15,7 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
 
   let score = 100
 
-  // 1. Title
+  // ─── 1. Title ───
   const titleText = $('title').first().text().trim()
   const titleLength = titleText.length
   let titleStatus: 'good' | 'warning' | 'error' = 'good'
@@ -58,7 +58,7 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
     score -= 5
   }
 
-  // 2. Meta Description
+  // ─── 2. Meta Description ───
   const metaDesc = $('meta[name="description"]').attr('content')?.trim() || ''
   const descLength = metaDesc.length
   let descStatus: 'good' | 'warning' | 'error' = 'good'
@@ -91,7 +91,7 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
     score -= 4
   }
 
-  // 3. Canonical Tag
+  // ─── 3. Canonical Tag ───
   const canonicalUrl = $('link[rel="canonical"]').attr('href') || null
   let canonicalStatus: 'good' | 'warning' | 'error' = 'good'
   let canonicalMessage = 'Etiqueta canónica configurada.'
@@ -112,7 +112,7 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
     })
   }
 
-  // 4. Headings
+  // ─── 4. Headings ───
   const h1Elements = $('h1')
   const h1Count = h1Elements.length
   const h2Count = $('h2').length
@@ -156,7 +156,7 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
     })
   }
 
-  // 5. Images with Alt
+  // ─── 5. Images with Alt ───
   const imgElements = $('img')
   const totalImages = imgElements.length
   let withoutAlt = 0
@@ -188,7 +188,7 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
     })
   }
 
-  // 6. Open Graph
+  // ─── 6. Open Graph ───
   const ogTitle = $('meta[property="og:title"]').attr('content') || null
   const ogImage = $('meta[property="og:image"]').attr('content') || null
   const ogDescription = $('meta[property="og:description"]').attr('content') || null
@@ -212,7 +212,108 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
     })
   }
 
-  // 7. Viewport & Lang
+  // ─── 7. Twitter Cards (NEW) ───
+  const twitterCard = $('meta[name="twitter:card"]').attr('content') || $('meta[property="twitter:card"]').attr('content') || null
+  const twitterTitle = $('meta[name="twitter:title"]').attr('content') || $('meta[property="twitter:title"]').attr('content') || null
+  const twitterImage = $('meta[name="twitter:image"]').attr('content') || $('meta[property="twitter:image"]').attr('content') || null
+  const hasTwitterCards = Boolean(twitterCard)
+  if (!hasTwitterCards) {
+    score -= 3
+    issues.push({
+      id: 'seo_missing_twitter_cards',
+      category: 'seo',
+      severity: 'info',
+      title: 'Configurar Twitter Cards',
+      description: 'Las Twitter Cards permiten que tu contenido se muestre con imagen y resumen al compartirlo en X (Twitter).',
+      impact: 'low',
+      effort: 'low',
+      steps: [
+        'Añade <meta name="twitter:card" content="summary_large_image">',
+        'Añade <meta name="twitter:title" content="...">',
+        'Añade <meta name="twitter:image" content="...">'
+      ]
+    })
+  }
+
+  // ─── 8. Structured Data / JSON-LD (NEW) ───
+  const jsonLdScripts = $('script[type="application/ld+json"]')
+  const structuredDataTypes: string[] = []
+  jsonLdScripts.each((_, el) => {
+    try {
+      const content = $(el).html()
+      if (content) {
+        const parsed = JSON.parse(content)
+        const type = parsed['@type'] || (Array.isArray(parsed['@graph']) ? parsed['@graph'].map((g: any) => g['@type']).join(', ') : null)
+        if (type) structuredDataTypes.push(String(type))
+      }
+    } catch {
+      // malformed JSON-LD
+    }
+  })
+  const hasStructuredData = jsonLdScripts.length > 0
+  if (!hasStructuredData) {
+    score -= 4
+    issues.push({
+      id: 'seo_missing_structured_data',
+      category: 'seo',
+      severity: 'info',
+      title: 'Sin datos estructurados (JSON-LD / Schema.org)',
+      description: 'Los datos estructurados ayudan a Google a entender el contenido y generar rich snippets (estrellas, FAQ, breadcrumbs).',
+      impact: 'medium',
+      effort: 'medium',
+      steps: [
+        'Añade un bloque <script type="application/ld+json"> con Schema.org apropiado.',
+        'Usa tipos como Organization, WebPage, Article, Product, FAQ, BreadcrumbList según el contenido.'
+      ]
+    })
+  }
+
+  // ─── 9. Hreflang (NEW) ───
+  const hreflangTags: Array<{ lang: string; href: string }> = []
+  $('link[rel="alternate"][hreflang]').each((_, el) => {
+    const lang = $(el).attr('hreflang')
+    const href = $(el).attr('href')
+    if (lang && href) hreflangTags.push({ lang, href })
+  })
+
+  // ─── 10. Meta Robots (NEW) ───
+  const metaRobotsContent = $('meta[name="robots"]').attr('content')?.toLowerCase() || null
+  const isIndexable = !metaRobotsContent || !metaRobotsContent.includes('noindex')
+  const isFollowable = !metaRobotsContent || !metaRobotsContent.includes('nofollow')
+
+  if (metaRobotsContent && metaRobotsContent.includes('noindex')) {
+    score -= 5
+    issues.push({
+      id: 'seo_noindex',
+      category: 'seo',
+      severity: 'warning',
+      title: 'Página marcada como noindex',
+      description: 'La directiva noindex impide que esta página aparezca en los resultados de búsqueda de Google.',
+      impact: 'high',
+      effort: 'low',
+      steps: ['Verifica que la directiva noindex es intencional. Si no lo es, elimínala del meta robots.']
+    })
+  }
+
+  // ─── 11. Favicon (NEW) ───
+  const faviconEl = $('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').first()
+  const faviconHref = faviconEl.attr('href') || null
+  const hasFavicon = Boolean(faviconHref)
+  if (!hasFavicon) {
+    score -= 2
+    issues.push({
+      id: 'seo_missing_favicon',
+      category: 'seo',
+      severity: 'info',
+      title: 'Favicon no detectado',
+      description: 'Un favicon mejora la identidad visual en las pestañas del navegador y en los favoritos de Google.',
+      impact: 'low',
+      effort: 'low',
+      steps: ['Añade <link rel="icon" href="/favicon.ico"> o un PNG/SVG en el <head>.']
+    })
+  }
+
+  // ─── 12. Viewport & Lang ───
   const hasViewport = $('meta[name="viewport"]').length > 0
   if (!hasViewport) {
     score -= 10
@@ -243,7 +344,7 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
     })
   }
 
-  // 8. Robots & Sitemap
+  // ─── 13. Robots & Sitemap ───
   if (!robotsTxtExists) {
     score -= 4
     issues.push({
@@ -272,6 +373,49 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
     })
   }
 
+  // ─── 14. Word Count & Reading Time (NEW) ───
+  const bodyText = $('body').text().replace(/\s+/g, ' ').trim()
+  const wordCount = bodyText ? bodyText.split(/\s+/).length : 0
+  const readingTimeMinutes = Math.max(1, Math.round(wordCount / 200))
+
+  if (wordCount < 300) {
+    score -= 3
+    issues.push({
+      id: 'seo_thin_content',
+      category: 'seo',
+      severity: 'info',
+      title: 'Contenido escaso (thin content)',
+      description: `La página contiene solo ${wordCount} palabras. Google favorece contenido sustancial con al menos 300-500 palabras.`,
+      impact: 'medium',
+      effort: 'medium',
+      steps: ['Amplía el contenido de la página con información relevante y valiosa para el usuario.']
+    })
+  }
+
+  // ─── 15. Internal/External Links (NEW) ───
+  let internalLinks = 0
+  let externalLinks = 0
+  const urlObj = (() => {
+    try { return new URL(url) } catch { return null }
+  })()
+  const targetDomain = urlObj?.hostname?.replace(/^www\./, '') || ''
+
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href')
+    if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) return
+    try {
+      const linkUrl = new URL(href, url)
+      const linkDomain = linkUrl.hostname.replace(/^www\./, '')
+      if (linkDomain === targetDomain) {
+        internalLinks++
+      } else {
+        externalLinks++
+      }
+    } catch {
+      internalLinks++ // relative URLs are internal
+    }
+  })
+
   return {
     score: Math.max(0, Math.min(100, score)),
     title: { text: titleText, length: titleLength, status: titleStatus, message: titleMessage },
@@ -280,6 +424,14 @@ export function auditSeo(options: SeoAuditOptions): SeoAuditResult {
     headings: { h1Count, h2Count, h3Count, h1Texts, status: headingStatus, message: headingMessage },
     images: { total: totalImages, withoutAlt, status: imgStatus, message: imgMessage },
     openGraph: { ogTitle, ogImage, ogDescription, status: hasOg ? 'good' : 'warning' },
+    twitterCards: { card: twitterCard, title: twitterTitle, image: twitterImage, status: hasTwitterCards ? 'good' : 'warning' },
+    structuredData: { found: hasStructuredData, types: structuredDataTypes, count: jsonLdScripts.length, status: hasStructuredData ? 'good' : 'warning' },
+    hreflang: { tags: hreflangTags, status: hreflangTags.length > 0 ? 'good' : 'info' },
+    metaRobots: { content: metaRobotsContent, isIndexable, isFollowable },
+    favicon: { found: hasFavicon, href: faviconHref },
+    wordCount,
+    readingTimeMinutes,
+    links: { internal: internalLinks, external: externalLinks, total: internalLinks + externalLinks },
     robotsTxt: { exists: robotsTxtExists, message: robotsTxtExists ? 'robots.txt detectado' : 'No se detectó /robots.txt' },
     sitemap: { exists: sitemapExists, message: sitemapExists ? 'sitemap.xml detectado' : 'No se detectó /sitemap.xml' },
     viewport: { hasViewport, message: hasViewport ? 'Viewport móvil configurado' : 'Sin viewport móvil' },

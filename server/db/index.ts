@@ -1,39 +1,70 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { createClient, type Client } from '@libsql/client'
+import { drizzle } from 'drizzle-orm/libsql'
 import * as schema from './schema'
 import path from 'node:path'
 import fs from 'node:fs'
 
-let sqliteInstance: Database.Database | null = null
+let clientInstance: Client | null = null
 
-export function getSqliteInstance(): Database.Database {
-  if (sqliteInstance) return sqliteInstance
+export function getLibSqlClient(): Client {
+  if (clientInstance) return clientInstance
 
   const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true'
-  let dbPath: string
+  let url: string
 
   if (isTest) {
-    dbPath = ':memory:'
-  } else {
-    const rawPath = process.env.DATABASE_PATH || './data/webauditor.sqlite'
-    dbPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath)
-    const dir = path.dirname(dbPath)
+    // Isolated test sqlite file per Vitest worker to avoid lock contention
+    const poolId = process.env.VITEST_POOL_ID || process.pid || '0'
+    const testDbPath = path.resolve(process.cwd(), `./data/test-webauditor-${poolId}.sqlite`)
+    const dir = path.dirname(testDbPath)
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true })
     }
+    url = `file:${testDbPath}`
+  } else {
+    const remoteUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL
+    const authToken = process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN
+
+    if (remoteUrl && (remoteUrl.startsWith('libsql:') || remoteUrl.startsWith('https:') || remoteUrl.startsWith('http:'))) {
+      clientInstance = createClient({ url: remoteUrl, authToken })
+      initTables(clientInstance).catch(err => {
+        console.error('[DB Init Error]', err)
+      })
+      return clientInstance
+    }
+
+    const rawPath = process.env.DATABASE_PATH || './data/webauditor.sqlite'
+    const dbPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath)
+    try {
+      const dir = path.dirname(dbPath)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+    } catch {
+      // In read-only serverless filesystem environments
+    }
+    url = `file:${dbPath}`
   }
 
-  sqliteInstance = new Database(dbPath)
-  sqliteInstance.pragma('journal_mode = WAL')
-  sqliteInstance.pragma('foreign_keys = ON')
+  clientInstance = createClient({ url })
 
-  initTables(sqliteInstance)
+  // Initialize PRAGMAs and tables
+  initTables(clientInstance).catch(err => {
+    console.error('[DB Init Error]', err)
+  })
 
-  return sqliteInstance
+  return clientInstance
 }
 
-function initTables(sqlite: Database.Database) {
-  sqlite.exec(`
+export async function initTables(client: Client) {
+  try {
+    await client.execute('PRAGMA foreign_keys = ON;')
+    await client.execute('PRAGMA journal_mode = WAL;')
+  } catch {
+    // Pragma might not be supported in some environments
+  }
+
+  await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -54,6 +85,7 @@ function initTables(sqlite: Database.Database) {
       performance_score INTEGER NOT NULL,
       security_score INTEGER NOT NULL,
       domain_score INTEGER NOT NULL,
+      accessibility_score INTEGER,
       created_at INTEGER NOT NULL
     );
 
@@ -65,6 +97,8 @@ function initTables(sqlite: Database.Database) {
       security_data TEXT NOT NULL,
       domain_data TEXT NOT NULL,
       tech_data TEXT NOT NULL,
+      accessibility_data TEXT,
+      links_data TEXT,
       action_plan TEXT NOT NULL
     );
 
@@ -77,13 +111,31 @@ function initTables(sqlite: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_audits_domain ON audits(domain);
     CREATE INDEX IF NOT EXISTS idx_audits_created_at ON audits(created_at);
   `)
+
+  // Run soft migrations for columns added after initial schema
+  try {
+    await client.execute('ALTER TABLE audits ADD COLUMN accessibility_score INTEGER;')
+  } catch {
+    // Column already exists or table freshly created
+  }
+  try {
+    await client.execute('ALTER TABLE audit_details ADD COLUMN accessibility_data TEXT;')
+  } catch {
+    // Column already exists
+  }
+  try {
+    await client.execute('ALTER TABLE audit_details ADD COLUMN links_data TEXT;')
+  } catch {
+    // Column already exists
+  }
 }
 
-export const db = drizzle(getSqliteInstance(), { schema })
+export const db = drizzle(getLibSqlClient(), { schema })
 
 export async function resetDatabaseForTests() {
-  const sqlite = getSqliteInstance()
-  sqlite.exec(`
+  const client = getLibSqlClient()
+  await initTables(client)
+  await client.executeMultiple(`
     DELETE FROM audit_details;
     DELETE FROM audits;
     DELETE FROM users;

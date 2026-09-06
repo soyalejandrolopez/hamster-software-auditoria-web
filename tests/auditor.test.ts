@@ -143,4 +143,51 @@ describe('Audit Engine Submodules', () => {
     expect(plan[0].severity).toBe('critical')
     expect(plan.some(p => p.id === 'missing_title')).toBe(true)
   })
+
+  it('should run accessibility audit and report violations or passes', async () => {
+    const { auditAccessibility } = await import('../server/services/auditor/accessibilityAuditor')
+    const accessibleHtml = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head><title>Test Accesible</title></head>
+      <body>
+        <main>
+          <h1>Título de prueba</h1>
+          <p>Contenido accesible para lectores de pantalla.</p>
+          <button type="button" aria-label="Enviar formulario">Enviar</button>
+        </main>
+      </body>
+      </html>
+    `
+    const result = await auditAccessibility(accessibleHtml)
+    expect(result).toBeDefined()
+    expect(result.score).toBeGreaterThanOrEqual(70)
+    expect(result.totalRules).toBeGreaterThan(0)
+    expect(Array.isArray(result.violations)).toBe(true)
+  })
+
+  it('should check links and classify internal and external URLs', async () => {
+    const { checkLinks } = await import('../server/services/auditor/linkChecker')
+    const htmlWithLinks = `
+      <!DOCTYPE html>
+      <html>
+      <body>
+        <a href="https://example.com/about">Acerca de</a>
+        <a href="https://google.com">Google</a>
+        <a href="mailto:info@example.com">Email</a>
+        <a href="#seccion">Ancla</a>
+      </body>
+      </html>
+    `
+    const result = await checkLinks({
+      html: htmlWithLinks,
+      url: 'https://example.com',
+      maxChecks: 5
+    })
+
+    expect(result).toBeDefined()
+    expect(result.totalLinks).toBe(2) // mailto and # are excluded
+    expect(result.score).toBeGreaterThanOrEqual(0)
+    expect(Array.isArray(result.broken)).toBe(true)
+  })
 })

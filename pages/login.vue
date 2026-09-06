@@ -10,7 +10,7 @@
             </svg>
           </div>
           <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Iniciar Sesión</h2>
-          <p class="text-xs text-slate-500 mt-1">Accede a tu panel de auditorías y monitoreo web</p>
+          <p class="text-xs text-slate-500 mt-1">Hamster Software Auditoría Web · Panel de Control</p>
         </div>
 
         <!-- Error Alert -->
@@ -41,10 +41,17 @@
               <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Contraseña
               </label>
+              <button
+                type="button"
+                @click="showPassword = !showPassword"
+                class="text-xs text-blue-600 hover:text-blue-700 font-medium select-none"
+              >
+                {{ showPassword ? 'Ocultar' : 'Mostrar' }}
+              </button>
             </div>
             <input
               v-model="password"
-              type="password"
+              :type="showPassword ? 'text' : 'password'"
               required
               placeholder="••••••••"
               class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
@@ -64,19 +71,38 @@
           </button>
         </form>
 
-        <!-- Quick Demo Autofill -->
+        <!-- Quick Demo 1-Click Login -->
         <div class="mt-6 pt-5 border-t border-slate-100">
-          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center mb-2.5">
-            Acceso Rápido de Prueba
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center mb-3">
+            Acceso Rápido con 1 Clic
           </p>
-          <button
-            type="button"
-            @click="fillAdminCredentials"
-            class="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 transition-colors flex items-center justify-center gap-2"
-          >
-            <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
-            Usar Administrador (admin@monitor.local)
-          </button>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              :disabled="loading"
+              @click="quickLogin('admin@monitor.local', 'Admin123!*')"
+              class="py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition-all flex flex-col items-center justify-center gap-0.5 text-center shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
+            >
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                <span>👑 Modo Admin</span>
+              </div>
+              <span class="text-[10px] text-indigo-500 font-normal">admin@monitor.local</span>
+            </button>
+
+            <button
+              type="button"
+              :disabled="loading"
+              @click="quickLogin('carlos.mendoza@empresa.com', 'Cliente123!*')"
+              class="py-2.5 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-all flex flex-col items-center justify-center gap-0.5 text-center shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
+            >
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                <span>👤 Modo Cliente</span>
+              </div>
+              <span class="text-[10px] text-blue-500 font-normal">carlos.mendoza@empresa.com</span>
+            </button>
+          </div>
         </div>
 
         <p class="mt-6 text-center text-xs text-slate-500">
@@ -96,12 +122,14 @@ import { ref } from 'vue'
 const email = ref('')
 const password = ref('')
 const errorMessage = ref('')
+const showPassword = ref(false)
 const { login, loading } = useAuth()
 const route = useRoute()
 
-const fillAdminCredentials = () => {
-  email.value = 'admin@monitor.local'
-  password.value = 'Admin123!*'
+const quickLogin = async (demoEmail: string, demoPass: string) => {
+  email.value = demoEmail
+  password.value = demoPass
+  await handleSubmit()
 }
 
 const handleSubmit = async () => {

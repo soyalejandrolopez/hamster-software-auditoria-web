@@ -8,16 +8,14 @@ import { runAudit } from '../services/auditor'
 
 export const auditRoutes = new Hono()
 
-auditRoutes.use('*', requireAuth)
-
 const scanSchema = z.object({
   url: z.string().min(3, 'URL requerida')
 })
 
-// Trigger a new website audit
+// Trigger a new website audit (public for visitors or saved for authenticated users)
 auditRoutes.post('/scan', async (c) => {
   try {
-    const user = c.get('user')!
+    const user = c.get('user')
     const body = await c.req.json()
     const parsed = scanSchema.safeParse(body)
     if (!parsed.success) {
@@ -31,13 +29,13 @@ auditRoutes.post('/scan', async (c) => {
     // Run the comprehensive audit
     const result = await runAudit(parsed.data.url, { pageSpeedApiKey })
 
-    // Save to Database
+    // Save to Database (userId is null if guest)
     const auditId = 'aud_' + Math.random().toString(36).substring(2, 10)
     const now = Math.floor(Date.now() / 1000)
 
     await db.insert(audits).values({
       id: auditId,
-      userId: user.id,
+      userId: user ? user.id : null,
       url: result.url,
       domain: result.domain,
       overallScore: result.overallScore,
@@ -45,6 +43,7 @@ auditRoutes.post('/scan', async (c) => {
       performanceScore: result.performance.score,
       securityScore: result.security.score,
       domainScore: result.domainData.score,
+      accessibilityScore: result.accessibility?.score ?? null,
       createdAt: now
     }).run()
 
@@ -56,6 +55,8 @@ auditRoutes.post('/scan', async (c) => {
       securityData: JSON.stringify(result.security),
       domainData: JSON.stringify(result.domainData),
       techData: JSON.stringify(result.tech.detected),
+      accessibilityData: result.accessibility ? JSON.stringify(result.accessibility) : null,
+      linksData: result.linkCheck ? JSON.stringify(result.linkCheck) : null,
       actionPlan: JSON.stringify(result.actionPlan)
     }).run()
 
@@ -69,6 +70,8 @@ auditRoutes.post('/scan', async (c) => {
         security: result.security,
         domainData: result.domainData,
         tech: result.tech.detected,
+        accessibility: result.accessibility,
+        linkCheck: result.linkCheck,
         actionPlan: result.actionPlan
       }
     }, 201)
@@ -77,8 +80,8 @@ auditRoutes.post('/scan', async (c) => {
   }
 })
 
-// List audits (client sees own, admin sees all)
-auditRoutes.get('/', async (c) => {
+// List audits (client sees own, admin sees all) - requires auth
+auditRoutes.get('/', requireAuth, async (c) => {
   try {
     const user = c.get('user')!
     let list
@@ -95,10 +98,10 @@ auditRoutes.get('/', async (c) => {
   }
 })
 
-// Get single audit by ID with full details
+// Get single audit by ID with full details (public for guest audits or accessible by owner/admin)
 auditRoutes.get('/:id', async (c) => {
   try {
-    const user = c.get('user')!
+    const user = c.get('user')
     const id = c.req.param('id')
 
     const audit = await db.select().from(audits).where(eq(audits.id, id)).get()
@@ -106,7 +109,8 @@ auditRoutes.get('/:id', async (c) => {
       return c.json({ error: 'Auditoría no encontrada' }, 404)
     }
 
-    if (user.role !== 'admin' && audit.userId !== user.id) {
+    // If the audit is owned by a registered user, restrict to admin or that user
+    if (audit.userId && (!user || (user.role !== 'admin' && audit.userId !== user.id))) {
       return c.json({ error: 'No tienes permiso para ver esta auditoría' }, 403)
     }
 
@@ -120,6 +124,8 @@ auditRoutes.get('/:id', async (c) => {
         security: JSON.parse(details.securityData),
         domainData: JSON.parse(details.domainData),
         tech: JSON.parse(details.techData),
+        accessibility: details.accessibilityData ? JSON.parse(details.accessibilityData) : null,
+        linkCheck: details.linksData ? JSON.parse(details.linksData) : null,
         actionPlan: JSON.parse(details.actionPlan)
       } : null
     })
@@ -128,8 +134,8 @@ auditRoutes.get('/:id', async (c) => {
   }
 })
 
-// Delete an audit
-auditRoutes.delete('/:id', async (c) => {
+// Delete an audit - requires auth
+auditRoutes.delete('/:id', requireAuth, async (c) => {
   try {
     const user = c.get('user')!
     const id = c.req.param('id')
@@ -150,17 +156,19 @@ auditRoutes.delete('/:id', async (c) => {
   }
 })
 
-// Get score evolution for a domain
+// Get score evolution for a domain (public or user-filtered)
 auditRoutes.get('/history/:domain', async (c) => {
   try {
-    const user = c.get('user')!
+    const user = c.get('user')
     const domain = c.req.param('domain').toLowerCase()
 
     let history
-    if (user.role === 'admin') {
+    if (user?.role === 'admin') {
       history = await db.select().from(audits).where(eq(audits.domain, domain)).orderBy(desc(audits.createdAt)).all()
-    } else {
+    } else if (user) {
       history = await db.select().from(audits).where(and(eq(audits.domain, domain), eq(audits.userId, user.id))).orderBy(desc(audits.createdAt)).all()
+    } else {
+      history = await db.select().from(audits).where(eq(audits.domain, domain)).orderBy(desc(audits.createdAt)).all()
     }
 
     return c.json({ domain, history })

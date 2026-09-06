@@ -20,6 +20,7 @@ export const audits = sqliteTable('audits', {
   performanceScore: integer('performance_score').notNull(),
   securityScore: integer('security_score').notNull(),
   domainScore: integer('domain_score').notNull(),
+  accessibilityScore: integer('accessibility_score'),
   createdAt: integer('created_at').notNull()
 })
 
@@ -31,6 +32,8 @@ export const auditDetails = sqliteTable('audit_details', {
   securityData: text('security_data').notNull(),
   domainData: text('domain_data').notNull(),
   techData: text('tech_data').notNull(),
+  accessibilityData: text('accessibility_data'),
+  linksData: text('links_data'),
   actionPlan: text('action_plan').notNull()
 })
 

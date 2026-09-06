@@ -5,18 +5,24 @@ export interface ActionPlanGeneratorInput {
   performanceScore: number
   securityScore: number
   domainScore: number
-  seoIssues: ActionPlanItem[]
-  performanceIssues: ActionPlanItem[]
-  securityIssues: ActionPlanItem[]
-  domainIssues: ActionPlanItem[]
+  accessibilityScore?: number
+  linkCheckScore?: number
+  seoIssues?: ActionPlanItem[]
+  performanceIssues?: ActionPlanItem[]
+  securityIssues?: ActionPlanItem[]
+  domainIssues?: ActionPlanItem[]
+  accessibilityIssues?: ActionPlanItem[]
+  linkCheckIssues?: ActionPlanItem[]
 }
 
 export function generateActionPlan(input: ActionPlanGeneratorInput): ActionPlanItem[] {
   const allIssues: ActionPlanItem[] = [
-    ...input.securityIssues,
-    ...input.seoIssues,
-    ...input.performanceIssues,
-    ...input.domainIssues
+    ...(input.securityIssues || []),
+    ...(input.accessibilityIssues || []),
+    ...(input.seoIssues || []),
+    ...(input.performanceIssues || []),
+    ...(input.domainIssues || []),
+    ...(input.linkCheckIssues || [])
   ]
 
   // Deduplicate by ID

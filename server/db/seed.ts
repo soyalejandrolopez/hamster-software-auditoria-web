@@ -12,7 +12,7 @@ export interface SeedAdminOptions {
 export async function ensureAdminSeeded(options?: SeedAdminOptions) {
   const adminEmail = options?.email || process.env.ADMIN_EMAIL || 'admin@monitor.local'
   const adminPassword = options?.password || process.env.ADMIN_PASSWORD || 'Admin123!*'
-  const adminName = options?.name || process.env.ADMIN_NAME || 'Administrador WebAuditor'
+  const adminName = options?.name || process.env.ADMIN_NAME || 'Administrador Hamster Software'
 
   // Check if an admin exists
   const existingAdmin = await db.select().from(users).where(eq(users.role, 'admin')).get()

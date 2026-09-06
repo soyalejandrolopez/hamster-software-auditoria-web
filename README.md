@@ -1,6 +1,6 @@
-# WebAuditor — Monitor & Auditor de Sitios Web
+# Hamster Software Auditoría Web — Monitor & Auditor de Sitios Web
 
-Plataforma moderna, completa y de alto rendimiento construida con **Nuxt 3** y **Hono** para auditar y monitorear cualquier sitio web. Diseñada exclusivamente en **Modo Claro (Light Mode)** con interfaz limpia, tipografía refinada (Plus Jakarta Sans) y componentes reactivos.
+Plataforma moderna, completa y de alto rendimiento construida con **Nuxt 3** y **Hono** para auditar y monitorear cualquier sitio web. Diseñada exclusivamente en **Modo Claro (Light Mode)** con interfaz limpia, tipografía refinada (Plus Jakarta Sans) y componentes reactivos. Permite análisis instantáneo y público sin registro previo.
 
 ---
 
@@ -64,7 +64,7 @@ JWT_SECRET="webauditor-super-secret-jwt-key-change-in-production-2026"
 # Administrador inicial
 ADMIN_EMAIL="admin@monitor.local"
 ADMIN_PASSWORD="Admin123!*"
-ADMIN_NAME="Administrador WebAuditor"
+ADMIN_NAME="Administrador Hamster Software"
 
 # Base de datos SQLite local
 DATABASE_PATH="./data/webauditor.sqlite"

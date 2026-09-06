@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3'
+import { createClient } from '@libsql/client'
 import bcrypt from 'bcryptjs'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -9,13 +9,64 @@ if (!fs.existsSync(dir)) {
   fs.mkdirSync(dir, { recursive: true })
 }
 
-const sqlite = new Database(dbPath)
-sqlite.pragma('journal_mode = WAL')
-sqlite.pragma('foreign_keys = ON')
+const client = createClient({ url: `file:${dbPath}` })
 
-console.log('🔄 Conectando a la base de datos en:', dbPath)
+console.log('🔄 Conectando a la base de datos con @libsql/client en:', dbPath)
 
 async function seed() {
+  // Asegurar tablas
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'client' CHECK(role IN ('admin', 'client')),
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS audits (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      url TEXT NOT NULL,
+      domain TEXT NOT NULL,
+      overall_score INTEGER NOT NULL,
+      seo_score INTEGER NOT NULL,
+      performance_score INTEGER NOT NULL,
+      security_score INTEGER NOT NULL,
+      domain_score INTEGER NOT NULL,
+      accessibility_score INTEGER,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_details (
+      id TEXT PRIMARY KEY,
+      audit_id TEXT NOT NULL UNIQUE REFERENCES audits(id) ON DELETE CASCADE,
+      seo_data TEXT NOT NULL,
+      performance_data TEXT NOT NULL,
+      security_data TEXT NOT NULL,
+      domain_data TEXT NOT NULL,
+      tech_data TEXT NOT NULL,
+      accessibility_data TEXT,
+      links_data TEXT,
+      action_plan TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_audits_user_id ON audits(user_id);
+    CREATE INDEX IF NOT EXISTS idx_audits_domain ON audits(domain);
+    CREATE INDEX IF NOT EXISTS idx_audits_created_at ON audits(created_at);
+  `)
+
+  try { await client.execute('ALTER TABLE audits ADD COLUMN accessibility_score INTEGER;') } catch {}
+  try { await client.execute('ALTER TABLE audit_details ADD COLUMN accessibility_data TEXT;') } catch {}
+  try { await client.execute('ALTER TABLE audit_details ADD COLUMN links_data TEXT;') } catch {}
+
   const now = Math.floor(Date.now() / 1000)
   const passwordHash = await bcrypt.hash('Admin123!*', 10)
   const clientPasswordHash = await bcrypt.hash('Cliente123!*', 10)
@@ -24,7 +75,7 @@ async function seed() {
   const usersToInsert = [
     {
       id: 'usr_admin_principal',
-      name: 'Administrador WebAuditor',
+      name: 'Administrador Hamster Software',
       email: 'admin@monitor.local',
       passwordHash: passwordHash,
       role: 'admin',
@@ -69,38 +120,31 @@ async function seed() {
     }
   ]
 
-  const insertUser = sqlite.prepare(`
-    INSERT INTO users (id, name, email, password_hash, role, created_at, updated_at)
-    VALUES (@id, @name, @email, @passwordHash, @role, @createdAt, @updatedAt)
-    ON CONFLICT(email) DO UPDATE SET
-      name = excluded.name,
-      password_hash = excluded.password_hash,
-      role = excluded.role,
-      updated_at = excluded.updated_at
-  `)
-
   for (const user of usersToInsert) {
-    insertUser.run(user)
+    await client.execute({
+      sql: `
+        INSERT INTO users (id, name, email, password_hash, role, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(email) DO UPDATE SET
+          name = excluded.name,
+          password_hash = excluded.password_hash,
+          role = excluded.role,
+          updated_at = excluded.updated_at
+      `,
+      args: [user.id, user.name, user.email, user.passwordHash, user.role, user.createdAt, user.updatedAt]
+    })
     console.log(`👤 Usuario insertado/actualizado: ${user.name} (${user.email}) - Rol: [${user.role}]`)
   }
 
   // Obtenemos los IDs reales de los usuarios
-  const getUserByEmail = sqlite.prepare('SELECT id FROM users WHERE email = ?')
-  const adminId = getUserByEmail.get('admin@monitor.local')?.id
-  const carlosId = getUserByEmail.get('carlos.mendoza@empresa.com')?.id
-  const lauraId = getUserByEmail.get('laura.tech@startup.io')?.id
-  const davidId = getUserByEmail.get('david.seo@agencia.es')?.id
-
-  // 2. Auditorías de ejemplo con datos detallados
-  const insertAudit = sqlite.prepare(`
-    INSERT OR REPLACE INTO audits (id, user_id, url, domain, overall_score, seo_score, performance_score, security_score, domain_score, created_at)
-    VALUES (@id, @userId, @url, @domain, @overallScore, @seoScore, @performanceScore, @securityScore, @domainScore, @createdAt)
-  `)
-
-  const insertAuditDetail = sqlite.prepare(`
-    INSERT OR REPLACE INTO audit_details (id, audit_id, seo_data, performance_data, security_data, domain_data, tech_data, action_plan)
-    VALUES (@id, @auditId, @seoData, @performanceData, @securityData, @domainData, @techData, @actionPlan)
-  `)
+  const adminRes = await client.execute({ sql: 'SELECT id FROM users WHERE email = ?', args: ['admin@monitor.local'] })
+  const adminId = adminRes.rows[0]?.id
+  const carlosRes = await client.execute({ sql: 'SELECT id FROM users WHERE email = ?', args: ['carlos.mendoza@empresa.com'] })
+  const carlosId = carlosRes.rows[0]?.id
+  const lauraRes = await client.execute({ sql: 'SELECT id FROM users WHERE email = ?', args: ['laura.tech@startup.io'] })
+  const lauraId = lauraRes.rows[0]?.id
+  const davidRes = await client.execute({ sql: 'SELECT id FROM users WHERE email = ?', args: ['david.seo@agencia.es'] })
+  const davidId = davidRes.rows[0]?.id
 
   const sampleAudits = [
     {
@@ -392,28 +436,58 @@ async function seed() {
   ]
 
   for (const item of sampleAudits) {
-    insertAudit.run({
-      id: item.id,
-      userId: item.userId,
-      url: item.url,
-      domain: item.domain,
-      overallScore: item.overallScore,
-      seoScore: item.seoScore,
-      performanceScore: item.performanceScore,
-      securityScore: item.securityScore,
-      domainScore: item.domainScore,
-      createdAt: item.createdAt
+    const accScore = item.details.accessibility?.score ?? 90
+    await client.execute({
+      sql: `
+        INSERT OR REPLACE INTO audits (id, user_id, url, domain, overall_score, seo_score, performance_score, security_score, domain_score, accessibility_score, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      args: [
+        item.id,
+        item.userId,
+        item.url,
+        item.domain,
+        item.overallScore,
+        item.seoScore,
+        item.performanceScore,
+        item.securityScore,
+        item.domainScore,
+        accScore,
+        item.createdAt
+      ]
     })
 
-    insertAuditDetail.run({
-      id: 'dtl_' + item.id,
-      auditId: item.id,
-      seoData: JSON.stringify(item.details.seo),
-      performanceData: JSON.stringify(item.details.performance),
-      securityData: JSON.stringify(item.details.security),
-      domainData: JSON.stringify(item.details.domainData),
-      techData: JSON.stringify(item.details.tech),
-      actionPlan: JSON.stringify(item.details.actionPlan)
+    await client.execute({
+      sql: `
+        INSERT OR REPLACE INTO audit_details (id, audit_id, seo_data, performance_data, security_data, domain_data, tech_data, accessibility_data, links_data, action_plan)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      args: [
+        'dtl_' + item.id,
+        item.id,
+        JSON.stringify(item.details.seo),
+        JSON.stringify(item.details.performance),
+        JSON.stringify(item.details.security),
+        JSON.stringify(item.details.domainData),
+        JSON.stringify(item.details.tech),
+        JSON.stringify(item.details.accessibility || {
+          score: 92,
+          violations: [],
+          passes: 28,
+          totalRules: 28,
+          summary: { critical: 0, serious: 0, moderate: 0, minor: 0 },
+          issues: []
+        }),
+        JSON.stringify(item.details.links || {
+          score: 100,
+          totalLinks: 24,
+          checkedCount: 20,
+          broken: [],
+          redirects: [],
+          issues: []
+        }),
+        JSON.stringify(item.details.actionPlan)
+      ]
     })
 
     console.log(`📊 Auditoría insertada: ${item.domain} (Score: ${item.overallScore}) -> Usuario: ${item.userId}`)

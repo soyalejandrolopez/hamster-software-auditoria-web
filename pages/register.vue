@@ -10,7 +10,7 @@
             </svg>
           </div>
           <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Crear Cuenta de Cliente</h2>
-          <p class="text-xs text-slate-500 mt-1">Regístrate para auditar sitios web y guardar tu historial</p>
+          <p class="text-xs text-slate-500 mt-1">Hamster Software Auditoría Web · Monitoreo y Análisis</p>
         </div>
 
         <!-- Error Alert -->

@@ -5,13 +5,16 @@ export default defineNuxtConfig({
   modules: [
     '@nuxtjs/tailwindcss'
   ],
+  nitro: {
+    preset: process.env.NITRO_PRESET || (process.env.CF_PAGES ? 'cloudflare-pages' : undefined)
+  },
   app: {
     head: {
-      title: 'WebAuditor - Monitor & Auditor de Sitios Web',
+      title: 'Hamster Software Auditoría Web - Monitor & Auditoría de Sitios Web',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'Audita el SEO, Rendimiento, Seguridad, Dominio y Tecnologías de cualquier sitio web con planes de acción accionables en Modo Claro.' }
+        { name: 'description', content: 'Hamster Software Auditoría Web: Analiza SEO, Rendimiento, Accesibilidad WCAG, Seguridad, Dominio y Enlaces con planes de acción accionables.' }
       ],
       link: [
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
@@ -26,7 +29,7 @@ export default defineNuxtConfig({
     adminPassword: process.env.ADMIN_PASSWORD || 'Admin123!*',
     pageSpeedApiKey: process.env.PAGESPEED_API_KEY || '',
     public: {
-      appName: 'WebAuditor'
+      appName: 'Hamster Software Auditoría Web'
     }
   }
 })
