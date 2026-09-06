@@ -105,7 +105,7 @@ El proyecto incluye soporte nativo y optimizado para **Cloudflare Pages**:
    * **Build command**: `npm run build`
    * **Build output directory**: `dist`
 4. **Variables de Entorno (Environment Variables)** en Cloudflare:
-   * `NODE_VERSION`: `20`
+   * `NODE_VERSION`: `22`
    * `NITRO_PRESET`: `cloudflare-pages`
    * `JWT_SECRET`: (Tu clave secreta para firmas JWT)
    * `ADMIN_EMAIL`: `admin@monitor.local` (o tu email preferido)
