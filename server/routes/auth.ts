@@ -4,7 +4,7 @@ import { db } from '../db'
 import { users } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { hashPassword, verifyPassword, signToken } from '../utils/auth'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth } from '../utils/hono-middleware'
 
 export const authRoutes = new Hono()
 

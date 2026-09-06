@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { authMiddleware } from './middleware/auth'
+import { authMiddleware } from './utils/hono-middleware'
 import { authRoutes } from './routes/auth'
 import { auditRoutes } from './routes/audits'
 import { adminRoutes } from './routes/admin'

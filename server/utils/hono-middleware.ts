@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono'
-import { verifyToken, parseCookies, TokenPayload } from '../utils/auth'
+import { verifyToken, parseCustomCookies, TokenPayload } from './auth'
 import { db } from '../db'
 import { users, User } from '../db/schema'
 import { eq } from 'drizzle-orm'
@@ -13,7 +13,7 @@ declare module 'hono' {
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
   const cookieHeader = c.req.header('cookie')
-  const cookies = parseCookies(cookieHeader)
+  const cookies = parseCustomCookies(cookieHeader)
   let token = cookies['auth_token']
 
   if (!token) {

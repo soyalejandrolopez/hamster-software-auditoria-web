@@ -29,7 +29,7 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
-export function parseCookies(cookieHeader?: string | null): Record<string, string> {
+export function parseCustomCookies(cookieHeader?: string | null): Record<string, string> {
   if (!cookieHeader) return {}
   const cookies: Record<string, string> = {}
   const items = cookieHeader.split(';')

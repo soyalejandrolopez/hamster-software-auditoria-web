@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../db'
 import { users, audits, systemSettings } from '../db/schema'
 import { eq, count, sql, desc } from 'drizzle-orm'
-import { requireAdmin } from '../middleware/auth'
+import { requireAdmin } from '../utils/hono-middleware'
 
 export const adminRoutes = new Hono()
 

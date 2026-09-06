@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../db'
 import { audits, auditDetails, systemSettings } from '../db/schema'
 import { eq, desc, and } from 'drizzle-orm'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth } from '../utils/hono-middleware'
 import { runAudit } from '../services/auditor'
 
 export const auditRoutes = new Hono()
