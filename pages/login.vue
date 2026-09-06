@@ -71,40 +71,6 @@
           </button>
         </form>
 
-        <!-- Quick Demo 1-Click Login -->
-        <div class="mt-6 pt-5 border-t border-slate-100">
-          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center mb-3">
-            Acceso Rápido con 1 Clic
-          </p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button
-              type="button"
-              :disabled="loading"
-              @click="quickLogin('admin@monitor.local', 'Admin123!*')"
-              class="py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition-all flex flex-col items-center justify-center gap-0.5 text-center shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
-            >
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
-                <span>👑 Modo Admin</span>
-              </div>
-              <span class="text-[10px] text-indigo-500 font-normal">admin@monitor.local</span>
-            </button>
-
-            <button
-              type="button"
-              :disabled="loading"
-              @click="quickLogin('carlos.mendoza@empresa.com', 'Cliente123!*')"
-              class="py-2.5 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-all flex flex-col items-center justify-center gap-0.5 text-center shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
-            >
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-blue-600"></span>
-                <span>👤 Modo Cliente</span>
-              </div>
-              <span class="text-[10px] text-blue-500 font-normal">carlos.mendoza@empresa.com</span>
-            </button>
-          </div>
-        </div>
-
         <p class="mt-6 text-center text-xs text-slate-500">
           ¿No tienes una cuenta aún?
           <NuxtLink to="/register" class="font-bold text-blue-600 hover:underline">
@@ -125,12 +91,6 @@ const errorMessage = ref('')
 const showPassword = ref(false)
 const { login, loading } = useAuth()
 const route = useRoute()
-
-const quickLogin = async (demoEmail: string, demoPass: string) => {
-  email.value = demoEmail
-  password.value = demoPass
-  await handleSubmit()
-}
 
 const handleSubmit = async () => {
   errorMessage.value = ''
